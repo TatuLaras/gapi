@@ -1,6 +1,7 @@
 #ifndef _GAPI_TYPES
 #define _GAPI_TYPES
 
+#include "cglm/types-struct.h"
 #include "cglm/types.h"
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
@@ -81,5 +82,19 @@ typedef struct {
     void *uniform_buffer_mappings[GAPI_MAX_FRAMES_IN_FLIGHT];
     VkDescriptorSet descriptor_sets[GAPI_MAX_FRAMES_IN_FLIGHT];
 } GapiObject;
+
+typedef struct {
+    vec3s pos;
+    vec3s color;
+    vec3s normal;
+    vec2s uv;
+} Vertex;
+
+typedef struct {
+    uint32_t vertex_count;
+    uint32_t index_count;
+    Vertex *vertices;
+    uint32_t *indices;
+} MeshData;
 
 #endif

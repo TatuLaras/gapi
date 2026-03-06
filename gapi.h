@@ -10,7 +10,6 @@
 #include <GLFW/glfw3.h>
 
 #include "gapi_types.h"
-#include "types.h"
 
 #define GAPI_ERR_MSG(result, message)                                          \
     {                                                                          \
