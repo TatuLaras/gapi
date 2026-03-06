@@ -244,14 +244,19 @@ GapiResult gapi_init(GapiInitInfo *info) {
     if (GapiMeshBuf_append(&meshes, &rectangle_mesh) < 0)
         return GAPI_SYSTEM_ERROR;
 
+    // Create a "null" texture
+    uint32_t pixel = UINT32_MAX;
+    GapiTextureHandle handle;
+    gapi_texture_upload(&pixel, 1, 1, &handle);
+
     return GAPI_SUCCESS;
 }
 
-GapiResult gapi_shader_create(GapiShaderCreateInfo *create_info,
-                              GapiShaderHandle *out_shader_handle) {
+GapiResult gapi_shader_create(GapiPipelineCreateInfo *create_info,
+                              GapiPipelineHandle *out_shader_handle) {
 
     GapiShader new_shader = {0};
-    GapiShaderHandle shader_handle = shaders.count;
+    GapiPipelineHandle shader_handle = shaders.count;
     if (GapiShaderBuf_append(&shaders, &new_shader) < 0)
         return GAPI_SYSTEM_ERROR;
 
@@ -260,8 +265,8 @@ GapiResult gapi_shader_create(GapiShaderCreateInfo *create_info,
     VkShaderModule shader_module;
     VkShaderModuleCreateInfo shader_module_create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = create_info->code_size,
-        .pCode = (uint32_t *)create_info->code,
+        .codeSize = create_info->shader_code_size,
+        .pCode = (uint32_t *)create_info->shader_code,
     };
     VK_ERR(vkCreateShaderModule(
         device, &shader_module_create_info, NULL, &shader_module));
@@ -356,13 +361,7 @@ GapiResult gapi_rect_create(GapiTextureHandle texture_handle,
                                       object->uniform_buffer_mappings + i));
     }
 
-    GapiTexture *texture = GapiTextureBuf_get(&textures, texture_handle);
-    if (texture == NULL)
-        return GAPI_INVALID_HANDLE;
-
     *out_object_handle = handle;
-    return GAPI_SUCCESS;
-
     return GAPI_SUCCESS;
 }
 
@@ -388,10 +387,6 @@ GapiResult gapi_object_create(GapiMeshHandle mesh_handle,
                                       object->uniform_buffer_memories + i,
                                       object->uniform_buffer_mappings + i));
     }
-
-    GapiTexture *texture = GapiTextureBuf_get(&textures, texture_handle);
-    if (texture == NULL)
-        return GAPI_INVALID_HANDLE;
 
     *out_object_handle = handle;
     return GAPI_SUCCESS;
@@ -594,7 +589,7 @@ static inline void update_uniform_buffer(GapiObject *object, mat4 *matrix) {
 }
 
 void gapi_object_draw(GapiObjectHandle object_handle,
-                      GapiShaderHandle shader_handle,
+                      GapiPipelineHandle shader_handle,
                       mat4 *matrix) {
 
     VkCommandBuffer cmd_buf = drawing_command_buffers[frame_index];
@@ -614,12 +609,11 @@ void gapi_object_draw(GapiObjectHandle object_handle,
 
     update_uniform_buffer(object, matrix);
 
-    // TODO: Work without texture too
     GapiTexture *texture =
         GapiTextureBuf_get(&textures, object->texture_handle);
-    if (texture == NULL) {
+    if (texture == NULL)
         return;
-    }
+
     gll_push_descriptor_set(cmd_buf,
                             pipeline_layout,
                             texture,
@@ -631,7 +625,7 @@ void gapi_object_draw(GapiObjectHandle object_handle,
 void gapi_rect_draw(GapiObjectHandle object_handle,
                     Rect2D rect,
                     vec4 color,
-                    GapiShaderHandle shader_handle) {
+                    GapiPipelineHandle shader_handle) {
 
     VkCommandBuffer cmd_buf = drawing_command_buffers[frame_index];
 
@@ -673,12 +667,11 @@ void gapi_rect_draw(GapiObjectHandle object_handle,
            &ubo_data,
            sizeof ubo_data);
 
-    // TODO: Work without texture too
     GapiTexture *texture =
         GapiTextureBuf_get(&textures, object->texture_handle);
-    if (texture == NULL) {
+    if (texture == NULL)
         return;
-    }
+
     gll_push_descriptor_set(cmd_buf,
                             pipeline_layout,
                             texture,

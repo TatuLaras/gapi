@@ -29,12 +29,18 @@ typedef enum {
     GAPI_ALPHA_BLENDING_NONE = 0,
     GAPI_ALPHA_BLENDING_BLEND,
     GAPI_ALPHA_BLENDING_ADDITIVE,
-} GapiAlphaBlendingMode;
+} GapiAlphaBlending;
+
+typedef enum {
+    GAPI_TOPOLOGY_TRIANGLES = 0,
+    GAPI_TOPOLOGY_LINES,
+    GAPI_TOPOLOGY_POINTS,
+} GapiTopology;
 
 typedef uint32_t GapiMeshHandle;
 typedef uint32_t GapiObjectHandle;
 typedef uint32_t GapiTextureHandle;
-typedef uint32_t GapiShaderHandle;
+typedef uint32_t GapiPipelineHandle;
 
 typedef struct {
     uint32_t width;
@@ -44,10 +50,11 @@ typedef struct {
 } GapiWindowInitInfo;
 
 typedef struct {
-    const char *code;
-    uint32_t code_size;
-    GapiAlphaBlendingMode alpha_blending_mode;
-} GapiShaderCreateInfo;
+    const char *shader_code;
+    uint32_t shader_code_size;
+    GapiAlphaBlending alpha_blending_mode;
+    GapiTopology topology;
+} GapiPipelineCreateInfo;
 
 typedef struct {
     VkPipeline pipeline;

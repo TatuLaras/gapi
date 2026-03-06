@@ -669,7 +669,7 @@ gll_create_graphics_pipeline(VkDevice device,
                              VkShaderModule shader_module,
                              VkDescriptorSetLayout descriptor_set_layout,
                              VkFormat depth_format,
-                             GapiAlphaBlendingMode alpha_blending_mode,
+                             GapiAlphaBlending alpha_blending_mode,
                              VkPipelineLayout *out_pipeline_layout,
                              VkPipeline *out_pipeline) {
 
@@ -1055,11 +1055,13 @@ void gll_push_descriptor_set(VkCommandBuffer command_buffer,
         .offset = 0,
         .range = sizeof(GapiUBO),
     };
+
     VkDescriptorImageInfo image_info = {
         .sampler = texture->sampler,
         .imageView = texture->image_view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
+
     VkWriteDescriptorSet descriptor_writes[] = {
         {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

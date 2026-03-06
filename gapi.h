@@ -91,8 +91,8 @@ GapiResult gapi_rect_create(GapiTextureHandle texture_handle,
 // Creates a shader object along with shader-specific resources such as
 // descriptor sets and a graphics pipeline. Opaque handle will be returned into
 // `out_shader_handle`.
-GapiResult gapi_shader_create(GapiShaderCreateInfo *shader,
-                              GapiShaderHandle *out_shader_handle);
+GapiResult gapi_shader_create(GapiPipelineCreateInfo *shader,
+                              GapiPipelineHandle *out_shader_handle);
 
 // Polls for GLFW events and returns whether or not the window should close.
 int gapi_window_should_close(void);
@@ -105,14 +105,14 @@ GapiResult gapi_render_end(void);
 // Draw a 3D object (`object_handle`) created with gapi_object_create() using
 // model matrix `matrix`.
 void gapi_object_draw(GapiObjectHandle object_handle,
-                      GapiShaderHandle shader_handle,
+                      GapiPipelineHandle shader_handle,
                       mat4 *matrix);
 // Draw a rectangle object `object_handle` on screen flatly without perspective
 // or view transforms.
 void gapi_rect_draw(GapiObjectHandle object_handle,
                     Rect2D rect,
                     vec4 color,
-                    GapiShaderHandle shader_handle);
+                    GapiPipelineHandle shader_handle);
 
 void gapi_get_window_size(uint32_t *out_width, uint32_t *out_height);
 
