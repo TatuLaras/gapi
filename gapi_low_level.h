@@ -91,9 +91,10 @@ GapiResult gll_create_descriptor_set_layout(
 GapiResult
 gll_create_graphics_pipeline(VkDevice device,
                              VkSurfaceFormatKHR surface_format,
-                             GapiShader shader,
+                             VkShaderModule shader_module,
                              VkDescriptorSetLayout descriptor_set_layout,
                              VkFormat depth_format,
+                             GapiAlphaBlendingMode alpha_blending_mode,
                              VkPipelineLayout *out_pipeline_layout,
                              VkPipeline *out_pipeline);
 

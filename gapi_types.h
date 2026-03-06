@@ -7,6 +7,7 @@
 #include <vulkan/vulkan_core.h>
 
 #define GAPI_MAX_FRAMES_IN_FLIGHT 2
+#define GAPI_MAX_LAYOUT_BINDINGS 32
 
 typedef enum {
     GAPI_SUCCESS = 0,
@@ -17,15 +18,23 @@ typedef enum {
     GAPI_NO_DEVICE_FOUND,
     GAPI_VULKAN_FEATURE_UNSUPPORTED,
     GAPI_INVALID_HANDLE,
+    GAPI_TOO_MANY_LAYOUT_BINDINGS,
 } GapiResult;
 
 typedef enum {
     GAPI_WINDOW_RESIZEABLE = 1,
 } GapiWindowFlags;
 
+typedef enum {
+    GAPI_ALPHA_BLENDING_NONE = 0,
+    GAPI_ALPHA_BLENDING_BLEND,
+    GAPI_ALPHA_BLENDING_ADDITIVE,
+} GapiAlphaBlendingMode;
+
 typedef uint32_t GapiMeshHandle;
 typedef uint32_t GapiObjectHandle;
 typedef uint32_t GapiTextureHandle;
+typedef uint32_t GapiShaderHandle;
 
 typedef struct {
     uint32_t width;
@@ -36,13 +45,17 @@ typedef struct {
 
 typedef struct {
     const char *code;
-    uint32_t size;
+    uint32_t code_size;
+    GapiAlphaBlendingMode alpha_blending_mode;
+} GapiShaderCreateInfo;
+
+typedef struct {
+    VkPipeline pipeline;
 } GapiShader;
 
 typedef struct {
     GapiWindowInitInfo window;
     uint32_t shader_count;
-    GapiShader *shaders;
 } GapiInitInfo;
 
 typedef struct {
@@ -63,6 +76,7 @@ typedef struct {
     mat4 model;
     mat4 view;
     mat4 projection;
+    vec4 color_tint;
 } GapiUBO;
 
 typedef struct {
@@ -76,7 +90,6 @@ typedef struct {
 typedef struct {
     GapiMeshHandle mesh_handle;
     GapiTextureHandle texture_handle;
-    vec4 model_matrix[4];
     VkBuffer uniform_buffers[GAPI_MAX_FRAMES_IN_FLIGHT];
     VkDeviceMemory uniform_buffer_memories[GAPI_MAX_FRAMES_IN_FLIGHT];
     void *uniform_buffer_mappings[GAPI_MAX_FRAMES_IN_FLIGHT];
@@ -96,5 +109,12 @@ typedef struct {
     Vertex *vertices;
     uint32_t *indices;
 } MeshData;
+
+typedef struct {
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+} Rect2D;
 
 #endif

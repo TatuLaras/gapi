@@ -666,20 +666,12 @@ GapiResult gll_create_descriptor_set_layout(
 GapiResult
 gll_create_graphics_pipeline(VkDevice device,
                              VkSurfaceFormatKHR surface_format,
-                             GapiShader shader,
+                             VkShaderModule shader_module,
                              VkDescriptorSetLayout descriptor_set_layout,
                              VkFormat depth_format,
+                             GapiAlphaBlendingMode alpha_blending_mode,
                              VkPipelineLayout *out_pipeline_layout,
                              VkPipeline *out_pipeline) {
-
-    VkShaderModule shader_module;
-    VkShaderModuleCreateInfo shader_module_create_info = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = shader.size,
-        .pCode = (uint32_t *)shader.code,
-    };
-    VK_ERR(vkCreateShaderModule(
-        device, &shader_module_create_info, NULL, &shader_module));
 
     VkPipelineShaderStageCreateInfo vert_shader_stage = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -747,6 +739,7 @@ gll_create_graphics_pipeline(VkDevice device,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
+        // .cullMode = VK_CULL_MODE_NONE,
         .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasSlopeFactor = 1.0,
@@ -758,11 +751,47 @@ gll_create_graphics_pipeline(VkDevice device,
         .sampleShadingEnable = VK_FALSE,
     };
 
-    VkPipelineColorBlendAttachmentState color_blend_attachment = {
-        .blendEnable = VK_FALSE,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    };
+    VkPipelineColorBlendAttachmentState color_blend_attachment;
+    switch (alpha_blending_mode) {
+
+    case GAPI_ALPHA_BLENDING_NONE:
+        color_blend_attachment = (VkPipelineColorBlendAttachmentState){
+            .blendEnable = VK_FALSE,
+            .colorWriteMask =
+                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        };
+        break;
+    case GAPI_ALPHA_BLENDING_BLEND:
+        color_blend_attachment = (VkPipelineColorBlendAttachmentState){
+            .blendEnable = VK_TRUE,
+            .colorWriteMask =
+                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp = VK_BLEND_OP_ADD,
+        };
+        break;
+    case GAPI_ALPHA_BLENDING_ADDITIVE:
+        color_blend_attachment = (VkPipelineColorBlendAttachmentState){
+            .blendEnable = VK_TRUE,
+            .colorWriteMask =
+                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp = VK_BLEND_OP_ADD,
+        };
+        break;
+    }
+
     VkPipelineColorBlendStateCreateInfo color_blending = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOpEnable = VK_FALSE,
@@ -822,8 +851,6 @@ gll_create_graphics_pipeline(VkDevice device,
     };
     VK_ERR(vkCreateGraphicsPipelines(
         device, NULL, 1, &graphics, NULL, out_pipeline));
-
-    vkDestroyShaderModule(device, shader_module, NULL);
 
     return GAPI_SUCCESS;
 }
