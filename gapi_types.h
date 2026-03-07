@@ -70,6 +70,8 @@ typedef struct {
     vec3 target;
     vec3 up;
     float fov_degrees;
+    float near_plane;
+    float far_plane;
 } GapiCamera;
 
 typedef struct {

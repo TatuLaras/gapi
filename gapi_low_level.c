@@ -4,6 +4,7 @@
 
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 static inline GapiResult
 find_supported_depth_format(VkPhysicalDevice physical_device,
@@ -314,9 +315,15 @@ GapiResult gll_create_device(VkInstance instance,
     pick_physical_device(
         instance, surface, out_physical_device, out_queue_index);
 
+    VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR latest = {
+        .sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR,
+        .presentModeFifoLatestReady = VK_TRUE,
+    };
     VkPhysicalDeviceExtendedDynamicStateFeaturesEXT f1 = {
         .sType =
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
+        .pNext = &latest,
         .extendedDynamicState = VK_TRUE,
     };
     VkPhysicalDeviceVulkan13Features f2 = {
@@ -347,6 +354,7 @@ GapiResult gll_create_device(VkInstance instance,
     const char *required_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
+        VK_KHR_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME,
     };
     VkDeviceCreateInfo device_create_info = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -430,6 +438,11 @@ GapiResult gll_create_swapchain(VkDevice device,
 
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_MAX_ENUM_KHR;
     for (uint32_t i = 0; i < present_modes_count; i++) {
+
+        if (present_modes[i] == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR) {
+            present_mode = present_modes[i];
+            break;
+        }
         if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
             present_mode = present_modes[i];
             break;
@@ -669,7 +682,7 @@ gll_create_graphics_pipeline(VkDevice device,
                              VkShaderModule shader_module,
                              VkDescriptorSetLayout descriptor_set_layout,
                              VkFormat depth_format,
-                             GapiAlphaBlending alpha_blending_mode,
+                             GapiPipelineCreateInfo *create_info,
                              VkPipelineLayout *out_pipeline_layout,
                              VkPipeline *out_pipeline) {
 
@@ -723,10 +736,25 @@ gll_create_graphics_pipeline(VkDevice device,
         .vertexAttributeDescriptionCount = COUNT(attribute_descriptions),
         .pVertexAttributeDescriptions = attribute_descriptions,
     };
+
+    VkPrimitiveTopology topology;
+    switch (create_info->topology) {
+    case GAPI_TOPOLOGY_TRIANGLES:
+        topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        break;
+    case GAPI_TOPOLOGY_LINES:
+        topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        break;
+    case GAPI_TOPOLOGY_POINTS:
+        topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+        break;
+    }
+
     VkPipelineInputAssemblyStateCreateInfo input_assembly = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .topology = topology,
     };
+
     VkPipelineViewportStateCreateInfo viewport_state = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
@@ -752,7 +780,7 @@ gll_create_graphics_pipeline(VkDevice device,
     };
 
     VkPipelineColorBlendAttachmentState color_blend_attachment;
-    switch (alpha_blending_mode) {
+    switch (create_info->alpha_blending_mode) {
 
     case GAPI_ALPHA_BLENDING_NONE:
         color_blend_attachment = (VkPipelineColorBlendAttachmentState){

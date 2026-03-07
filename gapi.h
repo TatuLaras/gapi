@@ -1,5 +1,5 @@
-//  TODO: Leaks everything Vulkan, do deinitialization
-//  TODO: Nullable texture handles
+//  FIXME: Nothing is deinitialized
+//  TODO: A mesh / texture data update function
 #ifndef _GRAPHICS_API
 #define _GRAPHICS_API
 
@@ -12,6 +12,7 @@
 #include <GLFW/glfw3.h>
 
 #include "gapi_types.h"
+#include "log.h"
 
 #define GAPI_ERR_MSG(result, message)                                          \
     {                                                                          \
@@ -60,10 +61,16 @@
 
 #define SWAPCHAIN_MAX_IMAGES 16
 
+#define GAPI_COLOR_WHITE (vec4){1.0, 1.0, 1.0, 1.0}
+#define GAPI_COLOR_BLACK (vec4){0.0, 0.0, 0.0, 1.0}
+#define GAPI_COLOR_RED (vec4){1.0, 0.0, 0.0, 1.0}
+#define GAPI_COLOR_GREEN (vec4){0.0, 1.0, 0.0, 1.0}
+#define GAPI_COLOR_BLUE (vec4){0.0, 0.0, 1.0, 1.0}
+
 extern VkResult gapi_vulkan_error;
 
 // Initialize the window and graphics context.
-GapiResult gapi_init(GapiInitInfo *info);
+GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window);
 
 // Upload mesh data to use for drawing. Opaque handle will be written to
 // `out_mesh_handle`.
@@ -88,14 +95,12 @@ GapiResult gapi_object_create(GapiMeshHandle mesh_handle,
 GapiResult gapi_rect_create(GapiTextureHandle texture_handle,
                             GapiObjectHandle *out_object_handle);
 
-// Creates a shader object along with shader-specific resources such as
-// descriptor sets and a graphics pipeline. Opaque handle will be returned into
-// `out_shader_handle`.
-GapiResult gapi_shader_create(GapiPipelineCreateInfo *shader,
-                              GapiPipelineHandle *out_shader_handle);
+GapiResult gapi_pipeline_create(GapiPipelineCreateInfo *create_info,
+                                GapiPipelineHandle *out_pipeline_handle);
 
 // Polls for GLFW events and returns whether or not the window should close.
-int gapi_window_should_close(void);
+// Returns frame delta-time into `out_delta_time`.
+int gapi_window_should_close(double *out_delta_time);
 // Call before any gapi*_draw functions. Optionally set `camera` for 3D
 // rendering.
 GapiResult gapi_render_begin(GapiCamera *camera);
@@ -106,7 +111,8 @@ GapiResult gapi_render_end(void);
 // model matrix `matrix`.
 void gapi_object_draw(GapiObjectHandle object_handle,
                       GapiPipelineHandle shader_handle,
-                      mat4 *matrix);
+                      mat4 *matrix,
+                      vec4 color_tint);
 // Draw a rectangle object `object_handle` on screen flatly without perspective
 // or view transforms.
 void gapi_rect_draw(GapiObjectHandle object_handle,

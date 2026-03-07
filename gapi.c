@@ -4,9 +4,9 @@
 #include "gapi_low_level.h"
 
 #include "gapi_types.h"
-#include "log.h"
 #include "utility_macros.h"
-// #define VEC_INLINE_FUNCTIONS
+#include <time.h>
+#define VEC_INLINE_FUNCTIONS
 #include "vec.h"
 #include <vulkan/vulkan_core.h>
 
@@ -131,7 +131,7 @@ window_resized_callback(GLFWwindow *_window, int _width, int _height) {
     has_window_resized = 1;
 }
 
-GapiResult gapi_init(GapiInitInfo *info) {
+GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window) {
 
     if (GapiObjectBuf_init(&objects) < 0 || GapiMeshBuf_init(&meshes) < 0 ||
         GapiTextureBuf_init(&textures) < 0 || GapiShaderBuf_init(&shaders) < 0)
@@ -143,6 +143,10 @@ GapiResult gapi_init(GapiInitInfo *info) {
                               info->window.flags,
                               window_resized_callback,
                               &window));
+
+    if (out_window != NULL)
+        *out_window = window;
+
     PROPAGATE(gll_create_instance(&instance));
     VK_ERR(glfwCreateWindowSurface(instance, window, NULL, &surface));
     PROPAGATE(gll_create_device(
@@ -252,8 +256,8 @@ GapiResult gapi_init(GapiInitInfo *info) {
     return GAPI_SUCCESS;
 }
 
-GapiResult gapi_shader_create(GapiPipelineCreateInfo *create_info,
-                              GapiPipelineHandle *out_shader_handle) {
+GapiResult gapi_pipeline_create(GapiPipelineCreateInfo *create_info,
+                                GapiPipelineHandle *out_pipeline_handle) {
 
     GapiShader new_shader = {0};
     GapiPipelineHandle shader_handle = shaders.count;
@@ -276,19 +280,44 @@ GapiResult gapi_shader_create(GapiPipelineCreateInfo *create_info,
                                            shader_module,
                                            descriptor_set_layout,
                                            depth_format,
-                                           create_info->alpha_blending_mode,
+                                           create_info,
                                            &pipeline_layout,
                                            &shader->pipeline));
 
     vkDestroyShaderModule(device, shader_module, NULL);
 
-    *out_shader_handle = shader_handle;
+    *out_pipeline_handle = shader_handle;
     return GAPI_SUCCESS;
 }
 
-GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle) {
+static inline void destroy_mesh(GapiMesh *mesh) {
 
-    GapiMesh gpu_mesh = {.index_count = mesh->index_count};
+    if (mesh->vertex_buffer != NULL) {
+        vkDestroyBuffer(device, mesh->vertex_buffer, NULL);
+        mesh->vertex_buffer = NULL;
+    }
+    if (mesh->index_buffer != NULL) {
+        vkDestroyBuffer(device, mesh->index_buffer, NULL);
+        mesh->index_buffer = NULL;
+    }
+    if (mesh->vertex_memory != NULL) {
+        vkFreeMemory(device, mesh->vertex_memory, NULL);
+        mesh->vertex_memory = NULL;
+    }
+    if (mesh->index_memory != NULL) {
+        vkFreeMemory(device, mesh->index_memory, NULL);
+        mesh->index_memory = NULL;
+    }
+}
+
+GapiResult gapi_mesh_update(MeshData *mesh, GapiMeshHandle mesh_handle) {
+
+    GapiMesh *gpu_mesh = GapiMeshBuf_get(&meshes, mesh_handle);
+    if (mesh == NULL)
+        return GAPI_INVALID_HANDLE;
+
+    destroy_mesh(gpu_mesh);
+    gpu_mesh->index_count = mesh->index_count;
 
     PROPAGATE(gll_upload_data(device,
                               physical_device,
@@ -297,8 +326,8 @@ GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle) {
                               mesh->vertices,
                               mesh->vertex_count * sizeof *mesh->vertices,
                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                              &gpu_mesh.vertex_buffer,
-                              &gpu_mesh.vertex_memory));
+                              &gpu_mesh->vertex_buffer,
+                              &gpu_mesh->vertex_memory));
     PROPAGATE(gll_upload_data(device,
                               physical_device,
                               command_pool,
@@ -306,11 +335,19 @@ GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle) {
                               mesh->indices,
                               mesh->index_count * sizeof *mesh->indices,
                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                              &gpu_mesh.index_buffer,
-                              &gpu_mesh.index_memory));
+                              &gpu_mesh->index_buffer,
+                              &gpu_mesh->index_memory));
 
+    return GAPI_SUCCESS;
+}
+
+GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle) {
+
+    GapiMesh new_mesh = {0};
     GapiMeshHandle handle = meshes.count;
-    SYS_ERR(GapiMeshBuf_append(&meshes, &gpu_mesh));
+    SYS_ERR(GapiMeshBuf_append(&meshes, &new_mesh));
+
+    PROPAGATE(gapi_mesh_update(mesh, handle));
 
     *out_mesh_handle = handle;
     return GAPI_SUCCESS;
@@ -563,14 +600,15 @@ GapiResult gapi_render_end(void) {
     return GAPI_SUCCESS;
 }
 
-static inline void update_uniform_buffer(GapiObject *object, mat4 *matrix) {
+static inline void
+update_uniform_buffer(GapiObject *object, mat4 *matrix, vec4 color_tint) {
 
     GapiUBO ubo_data = {
         .view = GLM_MAT4_IDENTITY_INIT,
         .projection = GLM_MAT4_IDENTITY_INIT,
-        .color_tint = {1.0, 1.0, 1.0, 1.0},
     };
     memcpy(ubo_data.model, matrix, sizeof(mat4));
+    memcpy(ubo_data.color_tint, color_tint, sizeof(vec4));
 
     float aspect_ratio = (float)swap_extent.width / swap_extent.height;
 
@@ -578,8 +616,8 @@ static inline void update_uniform_buffer(GapiObject *object, mat4 *matrix) {
         scene_camera.pos, scene_camera.target, scene_camera.up, ubo_data.view);
     glm_perspective(DEG_TO_RAD * scene_camera.fov_degrees,
                     aspect_ratio,
-                    0.1,
-                    100,
+                    scene_camera.near_plane,
+                    scene_camera.far_plane,
                     ubo_data.projection);
     ubo_data.projection[1][1] *= -1;
 
@@ -590,7 +628,8 @@ static inline void update_uniform_buffer(GapiObject *object, mat4 *matrix) {
 
 void gapi_object_draw(GapiObjectHandle object_handle,
                       GapiPipelineHandle shader_handle,
-                      mat4 *matrix) {
+                      mat4 *matrix,
+                      vec4 color_tint) {
 
     VkCommandBuffer cmd_buf = drawing_command_buffers[frame_index];
 
@@ -607,7 +646,7 @@ void gapi_object_draw(GapiObjectHandle object_handle,
     vkCmdBindVertexBuffers(cmd_buf, 0, 1, &mesh->vertex_buffer, &offset);
     vkCmdBindIndexBuffer(cmd_buf, mesh->index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    update_uniform_buffer(object, matrix);
+    update_uniform_buffer(object, matrix, color_tint);
 
     GapiTexture *texture =
         GapiTextureBuf_get(&textures, object->texture_handle);
@@ -680,7 +719,13 @@ void gapi_rect_draw(GapiObjectHandle object_handle,
     vkCmdDrawIndexed(cmd_buf, mesh->index_count, 1, 0, 0, 0);
 }
 
-int gapi_window_should_close(void) {
+int gapi_window_should_close(double *out_delta_time) {
+
+    static double last_time = 0;
+    float current_time = glfwGetTime();
+    *out_delta_time = current_time - last_time;
+    last_time = current_time;
+
     glfwPollEvents();
     return glfwWindowShouldClose(window);
 }

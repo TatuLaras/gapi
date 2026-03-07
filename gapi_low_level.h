@@ -94,7 +94,7 @@ gll_create_graphics_pipeline(VkDevice device,
                              VkShaderModule shader_module,
                              VkDescriptorSetLayout descriptor_set_layout,
                              VkFormat depth_format,
-                             GapiAlphaBlending alpha_blending_mode,
+                             GapiPipelineCreateInfo *create_info,
                              VkPipelineLayout *out_pipeline_layout,
                              VkPipeline *out_pipeline);
 
