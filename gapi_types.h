@@ -58,7 +58,8 @@ typedef struct {
 
 typedef struct {
     VkPipeline pipeline;
-} GapiShader;
+    VkPipelineLayout pipeline_layout;
+} GapiPipeline;
 
 typedef struct {
     GapiWindowInitInfo window;
@@ -102,7 +103,6 @@ typedef struct {
     VkBuffer uniform_buffers[GAPI_MAX_FRAMES_IN_FLIGHT];
     VkDeviceMemory uniform_buffer_memories[GAPI_MAX_FRAMES_IN_FLIGHT];
     void *uniform_buffer_mappings[GAPI_MAX_FRAMES_IN_FLIGHT];
-    VkDescriptorSet descriptor_sets[GAPI_MAX_FRAMES_IN_FLIGHT];
 } GapiObject;
 
 typedef struct {
@@ -111,13 +111,6 @@ typedef struct {
     vec3s normal;
     vec2s uv;
 } Vertex;
-
-typedef struct {
-    uint32_t vertex_count;
-    uint32_t index_count;
-    Vertex *vertices;
-    uint32_t *indices;
-} MeshData;
 
 typedef struct {
     uint32_t x;

@@ -203,7 +203,7 @@ static inline void copy_buffer_to_image(VkDevice device,
     end_single_time_commands(cmd_buf, queue);
 }
 
-GapiResult gll_create_instance(VkInstance *out_instance) {
+GapiResult gll_instance_create(VkInstance *out_instance) {
 #ifdef DEBUG
     const char *validation_layer_name = "VK_LAYER_KHRONOS_validation";
 
@@ -305,7 +305,7 @@ GapiResult gll_create_instance(VkInstance *out_instance) {
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_device(VkInstance instance,
+GapiResult gll_device_create(VkInstance instance,
                              VkSurfaceKHR surface,
                              VkPhysicalDevice *out_physical_device,
                              VkDevice *out_device,
@@ -372,7 +372,7 @@ GapiResult gll_create_device(VkInstance instance,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_swapchain(VkDevice device,
+GapiResult gll_swapchain_create(VkDevice device,
                                 VkPhysicalDevice physical_device,
                                 GLFWwindow *window,
                                 VkSurfaceKHR surface,
@@ -478,7 +478,7 @@ GapiResult gll_create_swapchain(VkDevice device,
 }
 
 GapiResult
-gll_create_swapchain_image_views(VkDevice device,
+gll_swapchain_image_views_create(VkDevice device,
                                  VkSwapchainKHR swapchain,
                                  VkSurfaceFormatKHR surface_format,
                                  uint32_t *swapchain_image_count,
@@ -506,7 +506,7 @@ gll_create_swapchain_image_views(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_command_pool(VkDevice device,
+GapiResult gll_command_pool_create(VkDevice device,
                                    uint32_t queue_index,
                                    VkCommandPool *out_command_pool) {
 
@@ -522,7 +522,7 @@ GapiResult gll_create_command_pool(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_command_buffers(VkDevice device,
+GapiResult gll_command_buffers_create(VkDevice device,
                                       VkCommandPool command_pool,
                                       uint32_t count,
                                       VkCommandBuffer *out_command_buffers) {
@@ -538,7 +538,7 @@ GapiResult gll_create_command_buffers(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_init_window(uint32_t width,
+GapiResult gll_window_init(uint32_t width,
                            uint32_t height,
                            const char *title,
                            GapiWindowFlags flags,
@@ -568,7 +568,7 @@ GapiResult gll_init_window(uint32_t width,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_image(VkDevice device,
+GapiResult gll_image_create(VkDevice device,
                             VkPhysicalDevice physical_device,
                             uint32_t width,
                             uint32_t height,
@@ -612,7 +612,7 @@ GapiResult gll_create_image(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_depth_resources(VkDevice device,
+GapiResult gll_depth_resources_create(VkDevice device,
                                       VkPhysicalDevice physical_device,
                                       VkExtent2D swap_extent,
                                       VkFormat *out_depth_format,
@@ -633,7 +633,7 @@ GapiResult gll_create_depth_resources(VkDevice device,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
         out_depth_format));
 
-    PROPAGATE(gll_create_image(device,
+    PROPAGATE(gll_image_create(device,
                                physical_device,
                                swap_extent.width,
                                swap_extent.height,
@@ -658,7 +658,7 @@ GapiResult gll_create_depth_resources(VkDevice device,
 }
 
 //  TODO: Depends on the shader used, dynamically create?
-GapiResult gll_create_descriptor_set_layout(
+GapiResult gll_descritor_set_layout_create(
     VkDevice device,
     uint32_t bindings_count,
     VkDescriptorSetLayoutBinding *bindings,
@@ -676,15 +676,14 @@ GapiResult gll_create_descriptor_set_layout(
     return GAPI_SUCCESS;
 }
 
-GapiResult
-gll_create_graphics_pipeline(VkDevice device,
-                             VkSurfaceFormatKHR surface_format,
-                             VkShaderModule shader_module,
-                             VkDescriptorSetLayout descriptor_set_layout,
-                             VkFormat depth_format,
-                             GapiPipelineCreateInfo *create_info,
-                             VkPipelineLayout *out_pipeline_layout,
-                             VkPipeline *out_pipeline) {
+GapiResult gll_pipeline_create(VkDevice device,
+                               VkSurfaceFormatKHR surface_format,
+                               VkShaderModule shader_module,
+                               VkDescriptorSetLayout descriptor_set_layout,
+                               VkFormat depth_format,
+                               GapiPipelineCreateInfo *create_info,
+                               VkPipelineLayout *out_pipeline_layout,
+                               VkPipeline *out_pipeline) {
 
     VkPipelineShaderStageCreateInfo vert_shader_stage = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -883,7 +882,7 @@ gll_create_graphics_pipeline(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_buffer(VkDevice device,
+GapiResult gll_buffer_create(VkDevice device,
                              VkPhysicalDevice physical_device,
                              VkDeviceSize size,
                              VkBufferUsageFlags usage,
@@ -923,7 +922,7 @@ GapiResult gll_create_buffer(VkDevice device,
     return GAPI_SUCCESS;
 }
 
-void gll_destroy_buffer(VkDevice device,
+void gll_buffer_destroy(VkDevice device,
                         VkBuffer buffer,
                         VkDeviceMemory memory) {
     vkFreeMemory(device, memory, NULL);
@@ -942,7 +941,7 @@ GapiResult gll_upload_data(VkDevice device,
 
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
-    PROPAGATE(gll_create_buffer(device,
+    PROPAGATE(gll_buffer_create(device,
                                 physical_device,
                                 size,
                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -951,7 +950,7 @@ GapiResult gll_upload_data(VkDevice device,
                                 &staging_buffer,
                                 &staging_buffer_memory));
 
-    PROPAGATE(gll_create_buffer(device,
+    PROPAGATE(gll_buffer_create(device,
                                 physical_device,
                                 size,
                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage,
@@ -970,19 +969,19 @@ GapiResult gll_upload_data(VkDevice device,
     buffer_copy(device, command_pool, *out_buffer, staging_buffer, size, queue);
 
     VK_ERR(vkQueueWaitIdle(queue));
-    gll_destroy_buffer(device, staging_buffer, staging_buffer_memory);
+    gll_buffer_destroy(device, staging_buffer, staging_buffer_memory);
 
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_uniform_buffer(VkDevice device,
+GapiResult gll_uniform_buffer_create(VkDevice device,
                                      VkPhysicalDevice physical_device,
                                      VkDeviceSize size,
                                      VkBuffer *out_buffer,
                                      VkDeviceMemory *out_memory,
                                      void **out_mapping) {
 
-    PROPAGATE(gll_create_buffer(device,
+    PROPAGATE(gll_buffer_create(device,
                                 physical_device,
                                 size,
                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -1063,7 +1062,7 @@ void gll_transition_image_layout(VkDevice device,
     end_single_time_commands(cmd_buf, queue);
 }
 
-void gll_destroy_depth_resources(VkDevice device,
+void gll_image_resources_destroy(VkDevice device,
                                  VkImage image,
                                  VkDeviceMemory memory,
                                  VkImageView image_view) {
@@ -1117,7 +1116,7 @@ void gll_push_descriptor_set(VkCommandBuffer command_buffer,
                            descriptor_writes);
 }
 
-GapiResult gll_create_semaphores(VkDevice device,
+GapiResult gll_semaphores_create(VkDevice device,
                                  uint32_t count,
                                  VkSemaphore *out_semaphores) {
 
@@ -1133,7 +1132,7 @@ GapiResult gll_create_semaphores(VkDevice device,
 }
 
 GapiResult
-gll_create_fences(VkDevice device, uint32_t count, VkFence *out_fences) {
+gll_fences_create(VkDevice device, uint32_t count, VkFence *out_fences) {
 
     VkFenceCreateInfo fence_create_info = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
@@ -1145,7 +1144,7 @@ gll_create_fences(VkDevice device, uint32_t count, VkFence *out_fences) {
     return GAPI_SUCCESS;
 }
 
-GapiResult gll_create_texture(VkDevice device,
+GapiResult gll_texture_create(VkDevice device,
                               VkCommandPool command_pool,
                               VkPhysicalDevice physical_device,
                               VkQueue queue,
@@ -1160,7 +1159,7 @@ GapiResult gll_create_texture(VkDevice device,
 
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
-    gll_create_buffer(device,
+    gll_buffer_create(device,
                       physical_device,
                       image_size,
                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -1178,7 +1177,7 @@ GapiResult gll_create_texture(VkDevice device,
 
     // Create image
 
-    PROPAGATE(gll_create_image(device,
+    PROPAGATE(gll_image_create(device,
                                physical_device,
                                width,
                                height,
@@ -1221,7 +1220,7 @@ GapiResult gll_create_texture(VkDevice device,
                                 VK_IMAGE_ASPECT_COLOR_BIT);
 
     VK_ERR(vkQueueWaitIdle(queue));
-    gll_destroy_buffer(device, staging_buffer, staging_buffer_memory);
+    gll_buffer_destroy(device, staging_buffer, staging_buffer_memory);
 
     // Create image view
 
@@ -1260,4 +1259,36 @@ GapiResult gll_create_texture(VkDevice device,
 
     *out_texture = texture;
     return GAPI_SUCCESS;
+}
+
+void gll_texture_destroy(VkDevice device, GapiTexture *texture) {
+
+    if (texture->sampler != NULL)
+        vkDestroySampler(device, texture->sampler, NULL);
+    if (texture->image_view != NULL)
+        vkDestroyImageView(device, texture->image_view, NULL);
+    if (texture->image != NULL)
+        vkDestroyImage(device, texture->image, NULL);
+    if (texture->image_memory != NULL)
+        vkFreeMemory(device, texture->image_memory, NULL);
+}
+
+void gll_mesh_destroy(VkDevice device, GapiMesh *mesh) {
+
+    if (mesh->vertex_buffer != NULL) {
+        vkDestroyBuffer(device, mesh->vertex_buffer, NULL);
+        mesh->vertex_buffer = NULL;
+    }
+    if (mesh->index_buffer != NULL) {
+        vkDestroyBuffer(device, mesh->index_buffer, NULL);
+        mesh->index_buffer = NULL;
+    }
+    if (mesh->vertex_memory != NULL) {
+        vkFreeMemory(device, mesh->vertex_memory, NULL);
+        mesh->vertex_memory = NULL;
+    }
+    if (mesh->index_memory != NULL) {
+        vkFreeMemory(device, mesh->index_memory, NULL);
+        mesh->index_memory = NULL;
+    }
 }

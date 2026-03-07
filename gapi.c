@@ -5,6 +5,7 @@
 
 #include "gapi_types.h"
 #include "utility_macros.h"
+#include <stdint.h>
 #include <time.h>
 #define VEC_INLINE_FUNCTIONS
 #include "vec.h"
@@ -15,7 +16,7 @@
 VEC(GapiObject, GapiObjectBuf)
 VEC(GapiMesh, GapiMeshBuf)
 VEC(GapiTexture, GapiTextureBuf)
-VEC(GapiShader, GapiShaderBuf)
+VEC(GapiPipeline, GapiPipelineBuf)
 
 VkResult gapi_vulkan_error = VK_SUCCESS;
 
@@ -54,13 +55,12 @@ static VkDeviceMemory depth_image_memory;
 static VkImageView depth_image_view;
 static VkFormat depth_format = 0;
 
-static VkPipelineLayout pipeline_layout = NULL;
 static VkDescriptorSetLayout descriptor_set_layout = NULL;
 
 static GapiObjectBuf objects = {0};
 static GapiMeshBuf meshes = {0};
 static GapiTextureBuf textures = {0};
-static GapiShaderBuf shaders = {0};
+static GapiPipelineBuf pipelines = {0};
 
 static GapiMeshHandle rectangle_mesh_handle = 0;
 
@@ -84,23 +84,23 @@ static inline GapiResult recreate_swapchain(void) {
 
     VK_ERR(vkDeviceWaitIdle(device));
     destroy_swapchain();
-    PROPAGATE(gll_create_swapchain(device,
+    PROPAGATE(gll_swapchain_create(device,
                                    physical_device,
                                    window,
                                    surface,
                                    &surface_format,
                                    &swap_extent,
                                    &swapchain));
-    PROPAGATE(gll_create_swapchain_image_views(device,
+    PROPAGATE(gll_swapchain_image_views_create(device,
                                                swapchain,
                                                surface_format,
                                                &swapchain_images.count,
                                                swapchain_images.images,
                                                swapchain_images.image_views));
 
-    gll_destroy_depth_resources(
+    gll_image_resources_destroy(
         device, depth_image, depth_image_memory, depth_image_view);
-    PROPAGATE(gll_create_depth_resources(device,
+    PROPAGATE(gll_depth_resources_create(device,
                                          physical_device,
                                          swap_extent,
                                          &depth_format,
@@ -113,12 +113,12 @@ static inline GapiResult recreate_swapchain(void) {
 
 static inline GapiResult create_sync_objects(void) {
 
-    PROPAGATE(gll_create_semaphores(
+    PROPAGATE(gll_semaphores_create(
         device, GAPI_MAX_FRAMES_IN_FLIGHT, present_done_semaphores));
-    PROPAGATE(gll_create_semaphores(
+    PROPAGATE(gll_semaphores_create(
         device, GAPI_MAX_FRAMES_IN_FLIGHT, rendering_done_semaphores));
     PROPAGATE(
-        gll_create_fences(device, GAPI_MAX_FRAMES_IN_FLIGHT, draw_fences));
+        gll_fences_create(device, GAPI_MAX_FRAMES_IN_FLIGHT, draw_fences));
     return GAPI_SUCCESS;
 }
 
@@ -134,10 +134,11 @@ window_resized_callback(GLFWwindow *_window, int _width, int _height) {
 GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window) {
 
     if (GapiObjectBuf_init(&objects) < 0 || GapiMeshBuf_init(&meshes) < 0 ||
-        GapiTextureBuf_init(&textures) < 0 || GapiShaderBuf_init(&shaders) < 0)
+        GapiTextureBuf_init(&textures) < 0 ||
+        GapiPipelineBuf_init(&pipelines) < 0)
         return GAPI_SYSTEM_ERROR;
 
-    PROPAGATE(gll_init_window(info->window.width,
+    PROPAGATE(gll_window_init(info->window.width,
                               info->window.height,
                               info->window.title,
                               info->window.flags,
@@ -147,29 +148,29 @@ GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window) {
     if (out_window != NULL)
         *out_window = window;
 
-    PROPAGATE(gll_create_instance(&instance));
+    PROPAGATE(gll_instance_create(&instance));
     VK_ERR(glfwCreateWindowSurface(instance, window, NULL, &surface));
-    PROPAGATE(gll_create_device(
+    PROPAGATE(gll_device_create(
         instance, surface, &physical_device, &device, &queue_index, &queue));
-    PROPAGATE(gll_create_swapchain(device,
+    PROPAGATE(gll_swapchain_create(device,
                                    physical_device,
                                    window,
                                    surface,
                                    &surface_format,
                                    &swap_extent,
                                    &swapchain));
-    PROPAGATE(gll_create_swapchain_image_views(device,
+    PROPAGATE(gll_swapchain_image_views_create(device,
                                                swapchain,
                                                surface_format,
                                                &swapchain_images.count,
                                                swapchain_images.images,
                                                swapchain_images.image_views));
-    PROPAGATE(gll_create_command_pool(device, queue_index, &command_pool));
-    PROPAGATE(gll_create_command_buffers(device,
+    PROPAGATE(gll_command_pool_create(device, queue_index, &command_pool));
+    PROPAGATE(gll_command_buffers_create(device,
                                          command_pool,
                                          GAPI_MAX_FRAMES_IN_FLIGHT,
                                          drawing_command_buffers));
-    PROPAGATE(gll_create_depth_resources(device,
+    PROPAGATE(gll_depth_resources_create(device,
                                          physical_device,
                                          swap_extent,
                                          &depth_format,
@@ -193,10 +194,10 @@ GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window) {
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    PROPAGATE(gll_create_descriptor_set_layout(device,
-                                               COUNT(layout_bindings),
-                                               layout_bindings,
-                                               &descriptor_set_layout));
+    PROPAGATE(gll_descritor_set_layout_create(device,
+                                              COUNT(layout_bindings),
+                                              layout_bindings,
+                                              &descriptor_set_layout));
 
     // Create mesh for rectangle drawing
     Vertex rect_vertices[] = {
@@ -256,15 +257,77 @@ GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window) {
     return GAPI_SUCCESS;
 }
 
+void gapi_free(void) {
+
+    vkDeviceWaitIdle(device);
+
+    // Destroy objects
+    for (uint32_t i = 0; i < objects.count; i++) {
+        for (uint32_t j = 0; j < GAPI_MAX_FRAMES_IN_FLIGHT; j++) {
+            vkUnmapMemory(device, objects.data[i].uniform_buffer_memories[j]);
+            vkFreeMemory(
+                device, objects.data[i].uniform_buffer_memories[j], NULL);
+            vkDestroyBuffer(device, objects.data[i].uniform_buffers[j], NULL);
+        }
+    }
+    GapiObjectBuf_free(&objects);
+
+    // Destroy textures
+    for (uint32_t i = 0; i < textures.count; i++) {
+        gll_texture_destroy(device, textures.data + i);
+    }
+    GapiTextureBuf_free(&textures);
+
+    // Destroy meshes
+    for (uint32_t i = 0; i < meshes.count; i++) {
+        gll_mesh_destroy(device, meshes.data + i);
+    }
+    GapiMeshBuf_free(&meshes);
+
+    // Command stuff
+    vkFreeCommandBuffers(device,
+                         command_pool,
+                         GAPI_MAX_FRAMES_IN_FLIGHT,
+                         drawing_command_buffers);
+    vkDestroyCommandPool(device, command_pool, NULL);
+
+    for (uint32_t i = 0; i < GAPI_MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(device, present_done_semaphores[i], NULL);
+        vkDestroySemaphore(device, rendering_done_semaphores[i], NULL);
+        vkDestroyFence(device, draw_fences[i], NULL);
+    }
+
+    // Pipeline stuff
+    for (uint32_t i = 0; i < pipelines.count; i++) {
+        vkDestroyPipeline(device, pipelines.data[i].pipeline, NULL);
+        vkDestroyPipelineLayout(
+            device, pipelines.data[i].pipeline_layout, NULL);
+    }
+
+    // Swapchain
+    for (uint32_t i = 0; i < swapchain_images.count; i++) {
+        vkDestroyImageView(device, swapchain_images.image_views[i], NULL);
+    }
+    vkDestroySwapchainKHR(device, swapchain, NULL);
+
+    // Other stuff
+    vkDestroyDescriptorSetLayout(device, descriptor_set_layout, NULL);
+    gll_image_resources_destroy(
+        device, depth_image, depth_image_memory, depth_image_view);
+
+    // Device
+    vkDestroyDevice(device, NULL);
+}
+
 GapiResult gapi_pipeline_create(GapiPipelineCreateInfo *create_info,
                                 GapiPipelineHandle *out_pipeline_handle) {
 
-    GapiShader new_shader = {0};
-    GapiPipelineHandle shader_handle = shaders.count;
-    if (GapiShaderBuf_append(&shaders, &new_shader) < 0)
+    GapiPipeline new_pipeline = {0};
+    GapiPipelineHandle pipeline_handle = pipelines.count;
+    if (GapiPipelineBuf_append(&pipelines, &new_pipeline) < 0)
         return GAPI_SYSTEM_ERROR;
 
-    GapiShader *shader = shaders.data + shader_handle;
+    GapiPipeline *pipeline = pipelines.data + pipeline_handle;
 
     VkShaderModule shader_module;
     VkShaderModuleCreateInfo shader_module_create_info = {
@@ -275,48 +338,28 @@ GapiResult gapi_pipeline_create(GapiPipelineCreateInfo *create_info,
     VK_ERR(vkCreateShaderModule(
         device, &shader_module_create_info, NULL, &shader_module));
 
-    PROPAGATE(gll_create_graphics_pipeline(device,
-                                           surface_format,
-                                           shader_module,
-                                           descriptor_set_layout,
-                                           depth_format,
-                                           create_info,
-                                           &pipeline_layout,
-                                           &shader->pipeline));
+    PROPAGATE(gll_pipeline_create(device,
+                                  surface_format,
+                                  shader_module,
+                                  descriptor_set_layout,
+                                  depth_format,
+                                  create_info,
+                                  &pipeline->pipeline_layout,
+                                  &pipeline->pipeline));
 
     vkDestroyShaderModule(device, shader_module, NULL);
 
-    *out_pipeline_handle = shader_handle;
+    *out_pipeline_handle = pipeline_handle;
     return GAPI_SUCCESS;
 }
 
-static inline void destroy_mesh(GapiMesh *mesh) {
-
-    if (mesh->vertex_buffer != NULL) {
-        vkDestroyBuffer(device, mesh->vertex_buffer, NULL);
-        mesh->vertex_buffer = NULL;
-    }
-    if (mesh->index_buffer != NULL) {
-        vkDestroyBuffer(device, mesh->index_buffer, NULL);
-        mesh->index_buffer = NULL;
-    }
-    if (mesh->vertex_memory != NULL) {
-        vkFreeMemory(device, mesh->vertex_memory, NULL);
-        mesh->vertex_memory = NULL;
-    }
-    if (mesh->index_memory != NULL) {
-        vkFreeMemory(device, mesh->index_memory, NULL);
-        mesh->index_memory = NULL;
-    }
-}
-
-GapiResult gapi_mesh_update(MeshData *mesh, GapiMeshHandle mesh_handle) {
+GapiResult gapi_mesh_update(GapiMeshHandle mesh_handle, MldMesh *mesh) {
 
     GapiMesh *gpu_mesh = GapiMeshBuf_get(&meshes, mesh_handle);
     if (mesh == NULL)
         return GAPI_INVALID_HANDLE;
 
-    destroy_mesh(gpu_mesh);
+    gll_mesh_destroy(device, gpu_mesh);
     gpu_mesh->index_count = mesh->index_count;
 
     PROPAGATE(gll_upload_data(device,
@@ -341,15 +384,38 @@ GapiResult gapi_mesh_update(MeshData *mesh, GapiMeshHandle mesh_handle) {
     return GAPI_SUCCESS;
 }
 
-GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle) {
+GapiResult gapi_mesh_upload(MldMesh *mesh, GapiMeshHandle *out_mesh_handle) {
 
     GapiMesh new_mesh = {0};
     GapiMeshHandle handle = meshes.count;
     SYS_ERR(GapiMeshBuf_append(&meshes, &new_mesh));
 
-    PROPAGATE(gapi_mesh_update(mesh, handle));
+    PROPAGATE(gapi_mesh_update(handle, mesh));
 
     *out_mesh_handle = handle;
+    return GAPI_SUCCESS;
+}
+
+GapiResult gapi_texture_update(GapiTextureHandle texture_handle,
+                               uint32_t *pixels,
+                               uint32_t width,
+                               uint32_t height) {
+
+    GapiTexture *texture = GapiTextureBuf_get(&textures, texture_handle);
+    if (texture == NULL)
+        return GAPI_INVALID_HANDLE;
+
+    gll_texture_destroy(device, texture);
+
+    PROPAGATE(gll_texture_create(device,
+                                 command_pool,
+                                 physical_device,
+                                 queue,
+                                 pixels,
+                                 width,
+                                 height,
+                                 texture));
+
     return GAPI_SUCCESS;
 }
 
@@ -359,18 +425,10 @@ GapiResult gapi_texture_upload(uint32_t *pixels,
                                GapiTextureHandle *out_texture_handle) {
 
     GapiTexture texture = {0};
-
-    PROPAGATE(gll_create_texture(device,
-                                 command_pool,
-                                 physical_device,
-                                 queue,
-                                 pixels,
-                                 width,
-                                 height,
-                                 &texture));
-
     GapiTextureHandle handle = textures.count;
     SYS_ERR(GapiTextureBuf_append(&textures, &texture));
+
+    PROPAGATE(gapi_texture_update(handle, pixels, width, height));
 
     *out_texture_handle = handle;
     return GAPI_SUCCESS;
@@ -390,7 +448,7 @@ GapiResult gapi_rect_create(GapiTextureHandle texture_handle,
 
     for (uint32_t i = 0; i < GAPI_MAX_FRAMES_IN_FLIGHT; i++) {
         PROPAGATE(
-            gll_create_uniform_buffer(device,
+            gll_uniform_buffer_create(device,
                                       physical_device,
                                       sizeof(GapiUBO),
                                       object->uniform_buffers + i,
@@ -417,7 +475,7 @@ GapiResult gapi_object_create(GapiMeshHandle mesh_handle,
 
     for (uint32_t i = 0; i < GAPI_MAX_FRAMES_IN_FLIGHT; i++) {
         PROPAGATE(
-            gll_create_uniform_buffer(device,
+            gll_uniform_buffer_create(device,
                                       physical_device,
                                       sizeof(GapiUBO),
                                       object->uniform_buffers + i,
@@ -627,16 +685,16 @@ update_uniform_buffer(GapiObject *object, mat4 *matrix, vec4 color_tint) {
 }
 
 void gapi_object_draw(GapiObjectHandle object_handle,
-                      GapiPipelineHandle shader_handle,
+                      GapiPipelineHandle pipeline_handle,
                       mat4 *matrix,
                       vec4 color_tint) {
 
     VkCommandBuffer cmd_buf = drawing_command_buffers[frame_index];
 
-    GapiShader *shader = shaders.data + shader_handle;
+    GapiPipeline *pipeline = pipelines.data + pipeline_handle;
 
     vkCmdBindPipeline(
-        cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, shader->pipeline);
+        cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
 
     GapiObject *object = GapiObjectBuf_get(&objects, object_handle);
     assert(object != NULL);
@@ -654,7 +712,7 @@ void gapi_object_draw(GapiObjectHandle object_handle,
         return;
 
     gll_push_descriptor_set(cmd_buf,
-                            pipeline_layout,
+                            pipeline->pipeline_layout,
                             texture,
                             object->uniform_buffers[frame_index]);
 
@@ -664,14 +722,14 @@ void gapi_object_draw(GapiObjectHandle object_handle,
 void gapi_rect_draw(GapiObjectHandle object_handle,
                     Rect2D rect,
                     vec4 color,
-                    GapiPipelineHandle shader_handle) {
+                    GapiPipelineHandle pipeline_handle) {
 
     VkCommandBuffer cmd_buf = drawing_command_buffers[frame_index];
 
-    GapiShader *shader = shaders.data + shader_handle;
+    GapiPipeline *pipeline = pipelines.data + pipeline_handle;
 
     vkCmdBindPipeline(
-        cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, shader->pipeline);
+        cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
 
     GapiObject *object = GapiObjectBuf_get(&objects, object_handle);
     assert(object != NULL);
@@ -712,7 +770,7 @@ void gapi_rect_draw(GapiObjectHandle object_handle,
         return;
 
     gll_push_descriptor_set(cmd_buf,
-                            pipeline_layout,
+                            pipeline->pipeline_layout,
                             texture,
                             object->uniform_buffers[frame_index]);
 

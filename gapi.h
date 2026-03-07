@@ -5,6 +5,7 @@
 
 #include "cglm/cglm.h"
 #include "cglm/types-struct.h"
+#include "model_loading.h"
 
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan.h>
@@ -71,16 +72,27 @@ extern VkResult gapi_vulkan_error;
 
 // Initialize the window and graphics context.
 GapiResult gapi_init(GapiInitInfo *info, GLFWwindow **out_window);
+void gapi_free(void);
 
 // Upload mesh data to use for drawing. Opaque handle will be written to
 // `out_mesh_handle`.
-GapiResult gapi_mesh_upload(MeshData *mesh, GapiMeshHandle *out_mesh_handle);
+GapiResult gapi_mesh_upload(MldMesh *mesh, GapiMeshHandle *out_mesh_handle);
 // Upload texture data to use for drawing. Opaque handle will be written to
 // `out_texture_handle`.
 GapiResult gapi_texture_upload(uint32_t *pixels,
                                uint32_t width,
                                uint32_t height,
                                GapiTextureHandle *out_texture_handle);
+
+// Update existing mesh object `mesh_handle` to have mesh data in `mesh`.
+GapiResult gapi_mesh_update(GapiMeshHandle mesh_handle, MldMesh *mesh);
+// Update existing texture object `texture_handle` to have texture data in
+// `pixels`.
+GapiResult gapi_texture_update(GapiTextureHandle texture_handle,
+                               uint32_t *pixels,
+                               uint32_t width,
+                               uint32_t height);
+
 // Create a drawable 3D object from mesh and texture handles obtained from
 // gapi_mesh_upload() and gapi_texture_upload() respectively. Opaque handle will
 // be written to `out_object_handle`.
